@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#e8f5e9;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem}
+.page{width:100%;max-width:780px}
+.page-tag{font-size:12px;font-weight:700;letter-spacing:.09em;color:#2e7d32;text-transform:uppercase;margin-bottom:5px}
+.page-title{font-size:22px;font-weight:700;color:#1b5e20;margin-bottom:1.5rem}
+.main-card{background:#fff;border-radius:20px;box-shadow:0 2px 28px rgba(0,0,0,0.08);padding:2rem;display:grid;grid-template-columns:220px 1fr;gap:2rem}
+@media(max-width:580px){.main-card{grid-template-columns:1fr}}
+.field-label{font-size:10px;font-weight:700;letter-spacing:.08em;color:#999;text-transform:uppercase;margin-bottom:7px}
+select{width:100%;font-size:14px;font-weight:500;padding:11px 12px;border:1.5px solid #e8e8e8;border-radius:10px;background:#fff;color:#111;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 11 7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' stroke='%23aaa' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;cursor:pointer;transition:border-color .15s;margin-bottom:1.25rem}
+select:focus{outline:none;border-color:#43a047}
+.zone{border:1.5px dashed #ddd;border-radius:10px;padding:1.2rem .75rem;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:#fafafa;margin-bottom:1.25rem}
+.zone:hover{border-color:#43a047;background:#f1f8f1}
+.zone.filled{border-color:#43a047;border-style:solid;background:#f1f8f1}
+.zone-icon{font-size:20px;color:#ccc;margin-bottom:5px}
+.zone-lbl{font-size:12px;color:#bbb;font-weight:500}
+.zone.filled .zone-lbl{color:#2e7d32;font-size:11px}
+input[type=file]{display:none}
+.gen-btn{width:100%;padding:13px;border:none;border-radius:10px;background:#1b5e20;color:#fff;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.02em;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:.75rem}
+.gen-btn:hover{background:#2e7d32}
+.gen-btn:disabled{background:#c8e6c9;color:#a5d6a7;cursor:not-allowed}
+.action-row{display:none;gap:8px;margin-bottom:.75rem}
+.action-row.show{display:flex}
+.act-btn{flex:1;padding:10px 8px;border:1.5px solid #e8e8e8;border-radius:10px;background:#fff;color:#333;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s}
+.act-btn:hover{border-color:#43a047;background:#f1f8f1}
+.btn-fb{background:#1877F2;color:#fff;border-color:#1877F2}
+.btn-fb:hover{background:#1464d0;border-color:#1464d0}
+.status{font-size:12px;min-height:16px;text-align:center}
+.status.loading{color:#1565c0}.status.error{color:#c62828}.status.success{color:#2e7d32}
+.note{font-size:11px;color:#bbb;line-height:1.7;margin-top:.75rem}
+.note strong{color:#aaa;font-weight:600}
+
+/* Right — preview */
+.right{display:flex;flex-direction:column}
+.preview-label{font-size:10px;font-weight:700;letter-spacing:.08em;color:#999;text-transform:uppercase;margin-bottom:10px}
+.preview-box{flex:1;background:#f5f5f5;border-radius:12px;border:1.5px dashed #e0e0e0;display:flex;align-items:center;justify-content:center;min-height:280px;overflow:hidden;position:relative}
+.preview-box.done{border:none;background:transparent}
+.ph{text-align:center;padding:1.5rem}
+.ph-icon{font-size:32px;color:#ddd;margin-bottom:8px}
+.ph p{font-size:12px;color:#ccc;line-height:1.6}
+.loader{display:none;flex-direction:column;align-items:center;gap:12px;padding:2rem}
+.spinner{width:36px;height:36px;border:3px solid #e8e8e8;border-top-color:#43a047;border-radius:50%;animation:spin .75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lmsg{font-size:12px;color:#aaa;animation:fp 1.4s ease-in-out infinite}
+@keyframes fp{0%,100%{opacity:1}50%{opacity:.3}}
+canvas{width:100%;height:auto;border-radius:12px;display:none}
+</style>
+</head>
+<body>
+<div class="page">
+  <p class="page-tag">Heidelberg Materials · WC 2026</p>
+  <p class="page-title">FIFA World Cup Fan Jersey Generator</p>
+  <div class="main-card">
+    <!-- LEFT -->
+    <div class="left">
+      <p class="field-label">Select your country</p>
+      <select id="teamSel">
+        <option value="">— Choose team —</option>
+        <option value="brazil">🇧🇷 Brazil</option>
+        <option value="argentina">🇦🇷 Argentina</option>
+        <option value="england">🏴󠁧󠁢󠁥󠁮󠁧󠁿 England</option>
+        <option value="france">🇫🇷 France</option>
+        <option value="germany">🇩🇪 Germany</option>
+        <option value="spain">🇪🇸 Spain</option>
+        <option value="portugal">🇵🇹 Portugal</option>
+        <option value="netherlands">🇳🇱 Netherlands</option>
+        <option value="belgium">🇧🇪 Belgium</option>
+        <option value="croatia">🇭🇷 Croatia</option>
+        <option value="uruguay">🇺🇾 Uruguay</option>
+        <option value="usa">🇺🇸 USA</option>
+        <option value="japan">🇯🇵 Japan</option>
+        <option value="senegal">🇸🇳 Senegal</option>
+        <option value="morocco">🇲🇦 Morocco</option>
+        <option value="australia">🇦🇺 Australia</option>
+      </select>
+
+      <p class="field-label">Upload your photo</p>
+      <div class="zone" id="pZone" onclick="document.getElementById('pInput').click()">
+        <div class="zone-icon">📷</div>
+        <div class="zone-lbl" id="pLbl">Click to upload photo</div>
+      </div>
+      <input type="file" id="pInput" accept="image/*">
+
+      <button class="gen-btn" id="genBtn" onclick="generate()" disabled>✦ Generate my fan card</button>
+
+      <div class="action-row" id="actRow">
+        <button class="act-btn" onclick="downloadImage()">↓ Download</button>
+        <button class="act-btn btn-fb" onclick="shareToFacebook()">f Share</button>
+      </div>
+
+      <p class="status" id="status"></p>
+
+      <p class="note"><strong>How it works</strong><br>Pick your team · Upload a clear photo · AI reads your photo and draws your team's jersey on you · Download & share</p>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+      <p class="preview-label">Preview</p>
+      <div class="preview-box" id="prevBox">
+        <div class="loader" id="loader">
+          <div class="spinner"></div>
+          <span class="lmsg" id="lmsg">Analysing your photo...</span>
+        </div>
+        <div class="ph" id="ph">
+          <div class="ph-icon">⚽</div>
+          <p>Your fan card<br>appears here</p>
+        </div>
+        <canvas id="cv"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TEAMS={
+  brazil:      {name:'Brazil',      flag:'🇧🇷',c1:'#009C3B',c2:'#FFDF00',c3:'#003087',stripe:null,       kit:'yellow & green',pattern:'solid'},
+  argentina:   {name:'Argentina',   flag:'🇦🇷',c1:'#74ACDF',c2:'#FFFFFF',c3:'#74ACDF',stripe:'vertical',  kit:'sky blue & white stripes',pattern:'stripe'},
+  england:     {name:'England',     flag:'🏴󠁧󠁢󠁥󠁮󠁧󠁿',c1:'#FFFFFF',c2:'#CF111B',c3:'#002868',stripe:null,       kit:'white with red details',pattern:'solid'},
+  france:      {name:'France',      flag:'🇫🇷',c1:'#002395',c2:'#FFFFFF',c3:'#ED2939',stripe:null,       kit:'dark blue',pattern:'solid'},
+  germany:     {name:'Germany',     flag:'🇩🇪',c1:'#FFFFFF',c2:'#000000',c3:'#DD0000',stripe:null,       kit:'white',pattern:'solid'},
+  spain:       {name:'Spain',       flag:'🇪🇸',c1:'#AA151B',c2:'#F1BF00',c3:'#AA151B',stripe:null,       kit:'red with yellow',pattern:'solid'},
+  portugal:    {name:'Portugal',    flag:'🇵🇹',c1:'#CC0000',c2:'#006600',c3:'#CC0000',stripe:null,       kit:'red & green',pattern:'solid'},
+  netherlands: {name:'Netherlands', flag:'🇳🇱',c1:'#FF4F00',c2:'#FFFFFF',c3:'#FF4F00',stripe:null,       kit:'orange',pattern:'solid'},
+  belgium:     {name:'Belgium',     flag:'🇧🇪',c1:'#1A1A1A',c2:'#FFD700',c3:'#CC0000',stripe:null,       kit:'black with gold',pattern:'solid'},
+  croatia:     {name:'Croatia',     flag:'🇭🇷',c1:'#CC0000',c2:'#FFFFFF',c3:'#003087',stripe:'check',     kit:'red & white checker',pattern:'check'},
+  uruguay:     {name:'Uruguay',     flag:'🇺🇾',c1:'#5EB6E4',c2:'#FFFFFF',c3:'#5EB6E4',stripe:null,       kit:'sky blue',pattern:'solid'},
+  usa:         {name:'USA',         flag:'🇺🇸',c1:'#002868',c2:'#BF0A30',c3:'#FFFFFF',stripe:null,       kit:'blue red white',pattern:'solid'},
+  japan:       {name:'Japan',       flag:'🇯🇵',c1:'#1A237E',c2:'#BC002D',c3:'#1A237E',stripe:null,       kit:'deep navy',pattern:'solid'},
+  senegal:     {name:'Senegal',     flag:'🇸🇳',c1:'#FFFFFF',c2:'#00853F',c3:'#FDEF42',stripe:null,       kit:'white & green',pattern:'solid'},
+  morocco:     {name:'Morocco',     flag:'🇲🇦',c1:'#C1272D',c2:'#006233',c3:'#C1272D',stripe:null,       kit:'red & green',pattern:'solid'},
+  australia:   {name:'Australia',   flag:'🇦🇺',c1:'#FFD700',c2:'#00843D',c3:'#FFD700',stripe:null,       kit:'gold & green',pattern:'solid'}
+};
+
+// ── Replace this with your deployed backend URL ──
+const BACKEND_URL = 'https://your-app-name.onrender.com';
+
+let userPhoto=null,selTeam=null;
+const logoImg=new Image();
+logoImg.crossOrigin='anonymous';
+logoImg.src='https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Heidelberg_Materials_logo.svg/1200px-Heidelberg_Materials_logo.svg.png';
+
+document.getElementById('pInput').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{userPhoto=img;document.getElementById('pZone').classList.add('filled');document.getElementById('pLbl').textContent='✓ '+f.name.slice(0,22);chk();};
+    img.src=ev.target.result;
+  };r.readAsDataURL(f);
+});
+document.getElementById('teamSel').addEventListener('change',e=>{selTeam=TEAMS[e.target.value]||null;chk();});
+function chk(){document.getElementById('genBtn').disabled=!(userPhoto&&selTeam);}
+function setSt(msg,t=''){const el=document.getElementById('status');el.textContent=msg;el.className='status '+t;}
+function showLoad(msg){
+  document.getElementById('loader').style.display='flex';
+  document.getElementById('ph').style.display='none';
+  document.getElementById('cv').style.display='none';
+  document.getElementById('lmsg').textContent=msg;
+  document.getElementById('prevBox').classList.remove('done');
+}
+function hideLoad(){document.getElementById('loader').style.display='none';}
+
+async function generate(){
+  if(!userPhoto||!selTeam)return;
+  const apiKey=document.getElementById('apiKey').value.trim();
+  if(!apiKey){setSt('Please enter your OpenAI API key above.','error');return;}
+
+  showLoad('Preparing your photo...');
+  setSt('');
+  document.getElementById('genBtn').disabled=true;
+  document.getElementById('actRow').classList.remove('show');
+
+  try{
+    const team=selTeam;
+
+    // Resize photo to 1024x1024 square (DALL-E requirement)
+    const SIZE=1024;
+    const sqCanvas=document.createElement('canvas');
+    sqCanvas.width=SIZE;sqCanvas.height=SIZE;
+    const sqCtx=sqCanvas.getContext('2d');
+    sqCtx.fillStyle='#ffffff';
+    sqCtx.fillRect(0,0,SIZE,SIZE);
+    // center-fit the photo
+    const asp=userPhoto.width/userPhoto.height;
+    let dw=SIZE,dh=SIZE;
+    if(asp>1){dh=SIZE/asp;}else{dw=SIZE*asp;}
+    sqCtx.drawImage(userPhoto,(SIZE-dw)/2,(SIZE-dh)/2,dw,dh);
+
+    const photoB64=sqCanvas.toDataURL('image/png').split(',')[1];
+
+    // Mask: transparent in torso region = area to inpaint
+    const maskCanvas=document.createElement('canvas');
+    maskCanvas.width=SIZE;maskCanvas.height=SIZE;
+    const mCtx=maskCanvas.getContext('2d');
+    mCtx.fillStyle='rgba(255,255,255,1)';
+    mCtx.fillRect(0,0,SIZE,SIZE);
+    mCtx.clearRect(SIZE*0.18,SIZE*0.28,SIZE*0.64,SIZE*0.52);
+    const maskB64=maskCanvas.toDataURL('image/png').split(',')[1];
+
+    const prompt=`The same person now wearing an official ${team.name} FIFA World Cup 2026 football jersey (${team.kit}). The jersey fits naturally on the body. Photorealistic. Keep the person's face, hair, background and everything else identical — only replace the shirt with the ${team.name} football jersey.`;
+
+    document.getElementById('lmsg').textContent='Generating jersey with DALL-E...';
+
+    const resp=await fetch('https://api.openai.com/v1/images/edits',{
+      method:'POST',
+      headers:{
+        'Authorization':'Bearer '+apiKey,
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({
+        model:'gpt-image-1',
+        image:[{type:'image_url',image_url:{url:'data:image/png;base64,'+photoB64}}],
+        mask:{type:'image_url',image_url:{url:'data:image/png;base64,'+maskB64}},
+        prompt,
+        n:1,
+        size:'1024x1024'
+      })
+    });
+
+    const data=await resp.json();
+    if(data.error)throw new Error(data.error.message);
+
+    const imgB64=data.data?.[0]?.b64_json;
+    const imgUrl=data.data?.[0]?.url;
+
+    document.getElementById('lmsg').textContent='Building your fan card...';
+
+    // Load the generated image
+    const genImg=new Image();
+    genImg.crossOrigin='anonymous';
+    await new Promise((res,rej)=>{
+      genImg.onload=res;genImg.onerror=rej;
+      genImg.src=imgB64?`data:image/png;base64,${imgB64}`:imgUrl;
+    });
+
+    // Also get AI caption from Claude
+    const tmpC=document.createElement('canvas');
+    const MAX=400;let w=userPhoto.width,h=userPhoto.height;
+    if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+    tmpC.width=w;tmpC.height=h;
+    tmpC.getContext('2d').drawImage(userPhoto,0,0,w,h);
+    const b64=tmpC.toDataURL('image/jpeg',0.75).split(',')[1];
+
+    let ai={caption:'A passionate '+team.name+' fan ready to cheer at the World Cup!',vibe:'bold and proud'};
+    try{
+      const cr=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          model:'claude-sonnet-4-20250514',max_tokens:120,
+          system:`Return ONLY raw JSON: {"caption":"<1-2 sentences max 25 words describing this person as a ${team.name} fan, mention their visible features>","vibe":"<3 words max fan energy>"}`,
+          messages:[{role:'user',content:[
+            {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+            {type:'text',text:`${team.name} supporter. JSON only.`}
+          ]}]
+        })
+      });
+      const cd=await cr.json();
+      const parsed=JSON.parse((cd.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim());
+      ai={...ai,...parsed};
+    }catch(_){}
+
+    hideLoad();
+    drawCard(team,ai,genImg);
+    document.getElementById('cv').style.display='block';
+    document.getElementById('prevBox').classList.add('done');
+    document.getElementById('actRow').classList.add('show');
+    setSt('Your fan card is ready!','success');
+
+  }catch(err){
+    hideLoad();
+    document.getElementById('ph').style.display='block';
+    setSt('Error: '+err.message+' — check your API key and credits.','error');
+  }
+  document.getElementById('genBtn').disabled=false;
+}
+
+function drawCard(team,ai,genImg){
+  const W=520,H=420;
+  const cv=document.getElementById('cv');
+  cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+
+  // White bg
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+
+  // ── Photo left panel ─────────────────────────────────────────────────────
+  const pW=210,pH=H-32,pX=16,pY=16;
+
+  // shadow
+  ctx.save();ctx.shadowColor='rgba(0,0,0,0.10)';ctx.shadowBlur=14;ctx.shadowOffsetY=3;
+  ctx.fillStyle='#fff';rr(ctx,pX,pY,pW,pH,10);ctx.fill();ctx.restore();
+
+  // photo clipped — use AI-generated image if available
+  ctx.save();rr(ctx,pX,pY,pW,pH,10);ctx.clip();
+  const srcImg=genImg||userPhoto;
+  const asp=srcImg.width/srcImg.height;
+  let dw=pW,dh=pH;
+  if(asp>pW/pH)dw=pH*asp;else dh=pW/asp;
+  ctx.drawImage(srcImg,pX+(pW-dw)/2,pY+(pH-dh)/2,dw,dh);
+  ctx.restore();
+
+  // Only draw canvas jersey if no AI image
+  if(!genImg){
+    ctx.save();rr(ctx,pX,pY,pW,pH,10);ctx.clip();
+    drawJersey(ctx,team,pX+pW/2,pY+pH*0.38,pY+pH*0.92,(pH*0.54),(pW*0.55*0.5),pX,pW);
+    ctx.restore();
+  }
+
+  // ── Draw jersey over torso ───────────────────────────────────────────────
+  // Convert AI fractions to canvas photo coords
+  const tTop  = pY + ai.torsoTop * pH;
+  const tBot  = pY + ai.torsoBot * pH;
+  const tH    = tBot - tTop;
+  const sHalf = (ai.shoulderW * pW) / 2;
+  const cx    = pX + pW / 2;
+
+  ctx.save();
+  rr(ctx,pX,pY,pW,pH,10);ctx.clip(); // stay inside photo bounds
+
+  drawJersey(ctx,team,cx,tTop,tBot,tH,sHalf,pX,pW);
+
+  ctx.restore();
+
+  // Country label strip at bottom of photo
+  ctx.save();rr(ctx,pX,pY,pW,pH,10);ctx.clip();
+  ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(pX,pY+pH-30,pW,30);
+  ctx.font='700 11px system-ui';ctx.fillStyle='#fff';ctx.textAlign='center';
+  ctx.fillText(team.flag+' '+team.name.toUpperCase(),pX+pW/2,pY+pH-11);
+  ctx.restore();
+
+  // ── Right info panel ─────────────────────────────────────────────────────
+  const rx=pX+pW+18,ry=pY,rw=W-rx-16;
+
+  // Top accent bar
+  const g=ctx.createLinearGradient(rx,0,W,0);
+  g.addColorStop(0,team.c1);g.addColorStop(1,team.c2);
+  ctx.fillStyle=g;ctx.fillRect(rx,ry,rw,5);
+
+  // Country name
+  ctx.save();
+  ctx.font='700 18px system-ui';ctx.fillStyle='#111';ctx.textAlign='left';
+  ctx.fillText(team.name,rx,ry+30);
+  ctx.font='10px system-ui';ctx.fillStyle='#bbb';
+  ctx.fillText('WC 2026 · Fan Jersey',rx,ry+46);
+  ctx.restore();
+
+  // Divider
+  ctx.fillStyle='#f0f0f0';ctx.fillRect(rx,ry+54,rw,1);
+
+  // Caption
+  ctx.save();
+  ctx.font='13px system-ui';ctx.fillStyle='#333';ctx.textAlign='left';
+  const cLines=wrap(ctx,ai.caption||'A proud '+team.name+' fan!',rw,13);
+  cLines.slice(0,3).forEach((l,i)=>ctx.fillText(l,rx,ry+75+i*20));
+  ctx.restore();
+
+  // Jersey desc box
+  const bY=ry+138;
+  ctx.save();
+  ctx.fillStyle=hexRgba(team.c1,0.07);rr(ctx,rx,bY,rw,66,7);ctx.fill();
+  ctx.strokeStyle=hexRgba(team.c1,0.2);ctx.lineWidth=1;ctx.stroke();
+  ctx.font='700 9px system-ui';ctx.fillStyle=team.c1;ctx.textAlign='left';
+  ctx.fillText('JERSEY STYLE',rx+10,bY+15);
+  ctx.font='12px system-ui';ctx.fillStyle='#444';
+  wrap(ctx,ai.jerseyDesc||team.kit,rw-20,12).slice(0,3).forEach((l,i)=>ctx.fillText(l,rx+10,bY+32+i*16));
+  ctx.restore();
+
+  // Vibe pill
+  if(ai.vibe){
+    ctx.save();
+    ctx.fillStyle=team.c2;rr(ctx,rx,bY+76,118,22,11);ctx.fill();
+    ctx.font='700 10px system-ui';ctx.fillStyle=luma(team.c2)>160?'#111':'#fff';
+    ctx.textAlign='center';ctx.fillText(ai.vibe.toUpperCase(),rx+59,bY+91);
+    ctx.restore();
+  }
+
+  // Hashtags
+  ctx.save();ctx.font='11px system-ui';ctx.fillStyle='#1565c0';ctx.textAlign='left';
+  ctx.fillText(`#WC2026  #${team.name.replace(/\s/g,'')}  #FanJersey`,rx,H-38);ctx.restore();
+
+  // Footer
+  ctx.fillStyle='#f9f9f9';ctx.fillRect(0,H-26,W,26);
+  ctx.save();ctx.font='10px system-ui';ctx.fillStyle='#ccc';ctx.textAlign='left';
+  ctx.fillText('Generated with AI · Heidelberg Materials · FIFA World Cup 2026',16,H-10);ctx.restore();
+
+  // Heidelberg Materials logo
+  const lw=120,lh=34,lx=W-lw-10,ly=H-26+(26-lh)/2-2;
+  ctx.save();
+  ctx.fillStyle='rgba(255,255,255,0.95)';rr(ctx,lx-6,ly-3,lw+12,lh+6,5);ctx.fill();
+  if(logoImg.complete&&logoImg.naturalWidth>0)ctx.drawImage(logoImg,lx,ly,lw,lh);
+  else logoImg.onload=()=>ctx.drawImage(logoImg,lx,ly,lw,lh);
+  ctx.restore();
+
+  // Top right thin accent on info panel
+  ctx.fillStyle=g;ctx.fillRect(W-4,ry,4,H-26-ry);
+}
+
+// ── Jersey drawing ───────────────────────────────────────────────────────────
+function drawJersey(ctx,team,cx,tTop,tBot,tH,sHalf,pX,pW){
+  const neckW=sHalf*0.32, neckH=tH*0.10;
+  const hemY=tBot;
+  const sleeveLen=tH*0.38, sleeveW=sHalf*0.40;
+  const sleeveTopY=tTop+tH*0.04, sleeveBotY=tTop+sleeveLen;
+  const bodyLeft=cx-sHalf, bodyRight=cx+sHalf;
+  const leftEdge=Math.max(pX+2,bodyLeft-sleeveW*0.7);
+  const rightEdge=Math.min(pX+pW-2,bodyRight+sleeveW*0.7);
+
+  // ── 1. Fill body + sleeves with team color (or pattern) ──────────────────
+  ctx.save();
+
+  // Body path
+  ctx.beginPath();
+  // neckline V
+  ctx.moveTo(cx-neckW,tTop);
+  ctx.lineTo(cx,tTop+neckH*1.4);
+  ctx.lineTo(cx+neckW,tTop);
+  // right shoulder → right sleeve outer
+  ctx.lineTo(bodyRight,sleeveTopY);
+  ctx.lineTo(rightEdge,sleeveTopY+tH*0.02);
+  ctx.lineTo(rightEdge,sleeveBotY);
+  ctx.lineTo(bodyRight+sleeveW*0.1,sleeveBotY+tH*0.04);
+  // right body side down to hem
+  ctx.lineTo(bodyRight+tH*0.02,hemY);
+  // hem
+  ctx.lineTo(bodyLeft-tH*0.02,hemY);
+  // left body side up
+  ctx.lineTo(bodyLeft-sleeveW*0.1,sleeveBotY+tH*0.04);
+  ctx.lineTo(leftEdge,sleeveBotY);
+  ctx.lineTo(leftEdge,sleeveTopY+tH*0.02);
+  // left shoulder
+  ctx.lineTo(bodyLeft,sleeveTopY);
+  ctx.closePath();
+
+  // Pattern fill
+  if(team.pattern==='stripe'){
+    // Vertical stripes: alternate c1 / c2
+    ctx.fillStyle=team.c2; ctx.fill(); // base
+    ctx.save();ctx.clip();
+    const sw=Math.max(6,sHalf*0.13);
+    for(let x=cx-sHalf*1.4;x<cx+sHalf*1.4;x+=sw*2){
+      ctx.fillStyle=team.c1;
+      ctx.fillRect(x,tTop-2,sw,tH+8);
+    }
+    ctx.restore();
+  } else if(team.pattern==='check'){
+    ctx.fillStyle=team.c2;ctx.fill();
+    ctx.save();ctx.clip();
+    const cs=Math.max(8,tH*0.09);
+    for(let row=0;row<14;row++){
+      for(let col=0;col<10;col++){
+        if((row+col)%2===0){
+          ctx.fillStyle=team.c1;
+          ctx.fillRect(cx-sHalf*1.4+col*cs,tTop+row*cs,cs,cs);
+        }
+      }
+    }
+    ctx.restore();
+  } else {
+    ctx.fillStyle=team.c1;ctx.fill();
+  }
+
+  // Collar band
+  ctx.beginPath();
+  ctx.moveTo(cx-neckW*1.5,tTop);
+  ctx.quadraticCurveTo(cx-neckW*0.5,tTop+neckH*0.5,cx,tTop+neckH*1.4);
+  ctx.quadraticCurveTo(cx+neckW*0.5,tTop+neckH*0.5,cx+neckW*1.5,tTop);
+  ctx.quadraticCurveTo(cx,tTop-neckH*0.6,cx-neckW*1.5,tTop);
+  ctx.fillStyle=team.c2;ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=1;ctx.stroke();
+
+  // Sleeve cuff bands
+  ctx.fillStyle=team.c2;
+  // right cuff
+  ctx.fillRect(rightEdge-6,sleeveBotY-tH*0.04,6,tH*0.08);
+  // left cuff
+  ctx.fillRect(leftEdge,sleeveBotY-tH*0.04,6,tH*0.08);
+
+  // Shoulder seam lines
+  ctx.strokeStyle='rgba(0,0,0,0.12)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(cx-neckW,tTop);ctx.lineTo(bodyLeft,sleeveTopY);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx+neckW,tTop);ctx.lineTo(bodyRight,sleeveTopY);ctx.stroke();
+
+  // Jersey outline for clean edge
+  ctx.beginPath();
+  ctx.moveTo(cx-neckW,tTop);ctx.lineTo(cx,tTop+neckH*1.4);ctx.lineTo(cx+neckW,tTop);
+  ctx.lineTo(bodyRight,sleeveTopY);ctx.lineTo(rightEdge,sleeveTopY+tH*0.02);
+  ctx.lineTo(rightEdge,sleeveBotY);ctx.lineTo(bodyRight+sleeveW*0.1,sleeveBotY+tH*0.04);
+  ctx.lineTo(bodyRight+tH*0.02,hemY);ctx.lineTo(bodyLeft-tH*0.02,hemY);
+  ctx.lineTo(bodyLeft-sleeveW*0.1,sleeveBotY+tH*0.04);ctx.lineTo(leftEdge,sleeveBotY);
+  ctx.lineTo(leftEdge,sleeveTopY+tH*0.02);ctx.lineTo(bodyLeft,sleeveTopY);ctx.closePath();
+  ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=1.2;ctx.stroke();
+
+  // Crest badge (small circle top-left chest)
+  const bx=cx-sHalf*0.35, by=tTop+tH*0.22, br=Math.max(7,tH*0.07);
+  ctx.beginPath();ctx.arc(bx,by,br,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.85)';ctx.fill();
+  ctx.strokeStyle=team.c2;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.font=`${Math.max(8,br*0.95)}px serif`;ctx.fillStyle=team.c1;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(team.flag,bx,by+1);
+  ctx.textBaseline='alphabetic';
+
+  ctx.restore();
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function rr(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+}
+function wrap(ctx,text,maxW,sz){
+  if(!text)return[''];ctx.font=(sz||13)+'px system-ui';
+  const words=text.split(' ');const lines=[];let line='';
+  for(const w of words){const t=line+w+' ';if(ctx.measureText(t).width>maxW&&line){lines.push(line.trim());line=w+' ';}else line=t;}
+  if(line)lines.push(line.trim());return lines;
+}
+function hexRgba(hex,a){
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+function luma(hex){
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return 0.299*r+0.587*g+0.114*b;
+}
+function downloadImage(){
+  document.getElementById('cv').toBlob(blob=>{
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='WC2026_'+(selTeam?selTeam.name.toLowerCase().replace(/\s/g,'_'):'fan')+'.png';a.click();
+  },'image/png');
+}
+async function shareToFacebook(){
+  const team=selTeam?selTeam.name:'my team';
+  const flag=selTeam?selTeam.flag:'⚽';
+  try{
+    const cv=document.getElementById('cv');
+    const imageB64=cv.toDataURL('image/png');
+    const resp=await fetch(`${BACKEND_URL}/api/share-image`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({imageB64,team,flag})
+    });
+    const data=await resp.json();
+    if(data.shareUrl){
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(data.shareUrl)}`,'_blank','width=620,height=420');
+      return;
+    }
+  }catch(_){}
+  // fallback
+  const text=encodeURIComponent(`I'm supporting ${team} at FIFA World Cup 2026! #WC2026 #${team.replace(/\s/g,'')} ⚽`);
+  window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${text}`,'_blank','width=620,height=420');
+}
+</script>
+</body>
+</html>
