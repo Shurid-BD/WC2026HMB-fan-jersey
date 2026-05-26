@@ -77,7 +77,9 @@ app.post('/api/generate', async (req, res) => {
     padded.composite(jimpImg, Math.floor((IMGSIZE - newW) / 2), Math.floor((IMGSIZE - newH) / 2));
     const finalPhotoBuffer = await padded.getBuffer('image/png');
     // Use padded image for editing (reassign)
-  
+    Object.assign(jimpImg, padded);
+
+    const finalPhotoBuffer = await jimpImg.getBuffer('image/png');
 
     // ── Step 3: Build matching 1024x1024 mask PNG ────────────────────────────
     const maskBuffer = await buildMaskPng(IMGSIZE);
@@ -131,7 +133,9 @@ async function buildMaskPng(size) {
   const img = new Jimp({ width: size, height: size });
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const inTorso = x > size*0.12 && x < size*0.88 && y > size*0.28 && y < size*0.88;
+      // Tighter mask — only shirt/torso area, preserving face, background, hands
+    // x: 10%-90% width, y: 38%-72% height (shirt only, not face or lower body)
+    const inTorso = x > size*0.10 && x < size*0.90 && y > size*0.38 && y < size*0.72;
       // transparent = edit area, white opaque = keep area
       img.setPixelColor(inTorso ? 0x00000000 : 0xFFFFFFFF, x, y);
     }
