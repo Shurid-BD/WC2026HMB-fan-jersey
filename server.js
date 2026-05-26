@@ -122,7 +122,19 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
-// ─── Create torso mask as valid PNG using raw pixel data ─────────────────────
+// ─── Build mask PNG matching exact size ──────────────────────────────────────
+async function buildMaskPng(size) {
+  const { Jimp } = require('jimp');
+  const img = new Jimp({ width: size, height: size });
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const inTorso = x > size*0.12 && x < size*0.88 && y > size*0.28 && y < size*0.88;
+      // transparent = edit area, white opaque = keep area
+      img.setPixelColor(inTorso ? 0x00000000 : 0xFFFFFFFF, x, y);
+    }
+  }
+  return await img.getBuffer('image/png');
+}
 function createMaskBase64() {
   const size = 512; // smaller = faster, still valid
   // PNG signature
