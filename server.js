@@ -130,33 +130,56 @@ Only the fabric of the shirt changes to the ${team.name} jersey with authentic t
   }
 });
 
-// ─── Create a simple torso mask (transparent in shirt area) ──────────────────
-// Returns base64 PNG: white everywhere except transparent in torso area
+// ─── Create torso mask as valid PNG using raw pixel data ─────────────────────
 function createMaskBase64() {
-  // Minimal 1x1 transparent PNG — we'll use a pre-built 1024x1024 mask
-  // White (keep) = RGB(255,255,255,255), Transparent (edit) = RGBA(0,0,0,0)
-  // This is a base64-encoded simple white PNG with transparent center
-  // For a proper mask, we use a raw PNG built with pixel data
+  const size = 512; // smaller = faster, still valid
+  // PNG signature
+  const sig = Buffer.from([137,80,78,71,13,10,26,10]);
 
-  const size = 1024;
-  const channels = 4;
-  const data = new Uint8Array(size * size * channels);
+  // IHDR chunk: width, height, bit depth, color type (6=RGBA), compression, filter, interlace
+  const ihdr = makeChunk('IHDR', Buffer.from([
+    0,0,2,0, 0,0,2,0, // 512x512
+    8, 6, 0, 0, 0
+  ]));
+
+  // Build raw pixel data
+  const rowSize = size * 4;
+  const raw = Buffer.alloc(size * (rowSize + 1)); // +1 for filter byte per row
 
   for (let y = 0; y < size; y++) {
+    raw[y * (rowSize + 1)] = 0; // filter type None
     for (let x = 0; x < size; x++) {
-      const i = (y * size + x) * channels;
-      // Torso region: x 15%-85%, y 30%-85% = transparent (to inpaint)
-      const inTorso = x > size * 0.15 && x < size * 0.85 && y > size * 0.30 && y < size * 0.85;
-      data[i]     = 255; // R
-      data[i + 1] = 255; // G
-      data[i + 2] = 255; // B
-      data[i + 3] = inTorso ? 0 : 255; // A: 0=transparent(edit), 255=opaque(keep)
+      const pi = y * (rowSize + 1) + 1 + x * 4;
+      const inTorso = x > size*0.12 && x < size*0.88 && y > size*0.28 && y < size*0.88;
+      raw[pi]   = 255; // R
+      raw[pi+1] = 255; // G
+      raw[pi+2] = 255; // B
+      raw[pi+3] = inTorso ? 0 : 255; // A: transparent=edit, opaque=keep
     }
   }
 
-  // Encode as PNG manually (using raw IDAT — simplified, use sharp in production)
-  // For now return a minimal valid transparent PNG as fallback
-  return 'iVBORw0KGgoAAAANSUhEUgAABAAAAAQACAYAAAB/HSuDAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEwAACxMBAJqcGAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAMASURBVHic7cExAQAAAMKg9U9tCy+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAMBuAABHgAAAABJRU5ErkJggg==';
+  const zlib = require('zlib');
+  const compressed = zlib.deflateSync(raw);
+  const idat = makeChunk('IDAT', compressed);
+  const iend = makeChunk('IEND', Buffer.alloc(0));
+
+  return Buffer.concat([sig, ihdr, idat, iend]).toString('base64');
+}
+
+function makeChunk(type, data) {
+  const crc32 = require('zlib').crc32 || (() => 0);
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const typeB = Buffer.from(type);
+  // Simple CRC calculation
+  let c = 0xFFFFFFFF;
+  const crcBuf = Buffer.concat([typeB, data]);
+  for (const b of crcBuf) {
+    c ^= b;
+    for (let i = 0; i < 8; i++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+  }
+  const crcOut = Buffer.alloc(4);
+  crcOut.writeUInt32BE((c ^ 0xFFFFFFFF) >>> 0);
+  return Buffer.concat([len, typeB, data, crcOut]);
 }
 
 // ─── POST /api/share-image ────────────────────────────────────────────────────
