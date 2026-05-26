@@ -166,8 +166,6 @@ function hideLoad(){document.getElementById('loader').style.display='none';}
 
 async function generate(){
   if(!userPhoto||!selTeam)return;
-  const apiKey=document.getElementById('apiKey').value.trim();
-  if(!apiKey){setSt('Please enter your OpenAI API key above.','error');return;}
 
   showLoad('Preparing your photo...');
   setSt('');
