@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: WC2026HMB-fan-jersey
+    env: node
+    buildCommand: "npm install && mkdir -p public/uploads"
+    startCommand: "node server.js"
