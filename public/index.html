@@ -146,18 +146,12 @@ const TEAMS={
 
 let userPhoto=null,selTeam=null;
 
-  // Fetch real Heidelberg Materials logo via backend (avoids CORS)
   const logoImg = new Image();
-  fetch(`${BACKEND_URL}/api/logo`)
-    .then(r => r.json())
-    .then(d => {
-      if(d.logo){
-        logoImg.src = d.logo;
-        const h = document.getElementById('headerLogo');
-        if(h) h.src = d.logo;
-      }
-    })
-    .catch(() => {});
+  logoImg.crossOrigin = 'anonymous';
+  logoImg.src = `${BACKEND_URL}/api/logo`;
+
+  const headerLogo = document.getElementById('headerLogo');
+  if(headerLogo) headerLogo.src = `${BACKEND_URL}/api/logo`;
 
 document.getElementById('pInput').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
