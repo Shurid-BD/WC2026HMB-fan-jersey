@@ -90,7 +90,6 @@ app.post('/api/generate', async (req, res) => {
         n: 1,
         size: '1024x1024',
         output_format: 'png',
-        quality: 'standard'
       })
     });
 
