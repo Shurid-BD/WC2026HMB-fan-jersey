@@ -47,7 +47,7 @@ app.post('/api/generate', async (req, res) => {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5',
         max_tokens: 320,
         system: `Analyse the person in the photo. Return ONLY raw JSON, no markdown:
 {"gender":"man or woman","age":"approximate e.g. mid-30s","build":"e.g. athletic, slim, heavyset","hair":"color and style e.g. short black hair","skin":"skin tone e.g. light brown","expression":"e.g. smiling warmly","caption":"<1-2 sentences max 25 words as a proud ${team.name} fan, mention features>","vibe":"<3 words max fan energy>"}`,
