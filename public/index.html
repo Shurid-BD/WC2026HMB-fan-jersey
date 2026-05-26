@@ -59,7 +59,7 @@ canvas{width:100%;height:auto;border-radius:12px;display:none}
       <p class="tag">Heidelberg Materials Bangladesh PLC.</p>
       <p class="title">FIFA World Cup 2026 Fan Jersey Generator</p>
     </div>
-    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Heidelberg_Materials_logo.svg/1200px-Heidelberg_Materials_logo.svg.png" alt="Heidelberg Materials Logo">
+    <img id="headerLogo" src="" alt="Heidelberg Materials" style="height:52px;width:auto;object-fit:contain">
   </div>
 
   <div class="main-card">
@@ -146,9 +146,18 @@ const TEAMS={
 
 let userPhoto=null,selTeam=null;
 
-const logoImg=new Image();
-logoImg.crossOrigin='anonymous';
-logoImg.src='https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Heidelberg_Materials_logo.svg/1200px-Heidelberg_Materials_logo.svg.png';
+  // Fetch real Heidelberg Materials logo via backend (avoids CORS)
+  const logoImg = new Image();
+  fetch(`${BACKEND_URL}/api/logo`)
+    .then(r => r.json())
+    .then(d => {
+      if(d.logo){
+        logoImg.src = d.logo;
+        const h = document.getElementById('headerLogo');
+        if(h) h.src = d.logo;
+      }
+    })
+    .catch(() => {});
 
 document.getElementById('pInput').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
