@@ -89,7 +89,7 @@ app.post('/api/generate', async (req, res) => {
         prompt: dallePrompt,
         n: 1,
         size: '1024x1024',
-        response_format: 'b64_json',
+        output_format: 'png',
         quality: 'standard'
       })
     });
