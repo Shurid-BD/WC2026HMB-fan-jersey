@@ -85,7 +85,7 @@ app.post('/api/generate', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'dall-e-3',
+        model: 'gpt-image-2',
         prompt: dallePrompt,
         n: 1,
         size: '1024x1024',
