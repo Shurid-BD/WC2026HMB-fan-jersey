@@ -149,9 +149,10 @@ let userPhoto=null,selTeam=null;
   const logoImg = new Image();
   logoImg.crossOrigin = 'anonymous';
   logoImg.src = `${BACKEND_URL}/api/logo`;
-
-  const headerLogo = document.getElementById('headerLogo');
-  if(headerLogo) headerLogo.src = `${BACKEND_URL}/api/logo`;
+  logoImg.onload = () => {
+    const headerLogo = document.getElementById('headerLogo');
+    if(headerLogo) headerLogo.src = logoImg.src;
+  };
 
 document.getElementById('pInput').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
@@ -267,11 +268,19 @@ function drawCard(team,ai,genImg){
 
   // Heidelberg Materials logo — top right on photo
   const lw=140,lh=38,lx=pX+pW-lw-10,ly=pY+10;
-  ctx.save();
-  ctx.fillStyle='rgba(255,255,255,0.92)';rr(ctx,lx-8,ly-5,lw+16,lh+10,7);ctx.fill();
-  if(logoImg.complete&&logoImg.naturalWidth>0){ctx.drawImage(logoImg,lx,ly,lw,lh);}
-  else{logoImg.onload=()=>{ctx.drawImage(logoImg,lx,ly,lw,lh);};}
-  ctx.restore();
+  const drawLogo = () => {
+    ctx.save();
+    ctx.fillStyle='rgba(255,255,255,0.92)';
+    rr(ctx,lx-8,ly-5,lw+16,lh+10,7);
+    ctx.fill();
+    ctx.drawImage(logoImg,lx,ly,lw,lh);
+    ctx.restore();
+  };
+  if(logoImg.complete && logoImg.naturalWidth > 0){
+    drawLogo();
+  } else {
+    logoImg.onload = drawLogo;
+  }
 
   // Footer
   ctx.fillStyle='#f9f9f9';ctx.fillRect(0,H-50,W,50);
