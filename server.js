@@ -77,9 +77,7 @@ app.post('/api/generate', async (req, res) => {
     padded.composite(jimpImg, Math.floor((IMGSIZE - newW) / 2), Math.floor((IMGSIZE - newH) / 2));
     const finalPhotoBuffer = await padded.getBuffer('image/png');
     // Use padded image for editing (reassign)
-    Object.assign(jimpImg, padded);
-
-    const finalPhotoBuffer = await jimpImg.getBuffer('image/png');
+  
 
     // ── Step 3: Build matching 1024x1024 mask PNG ────────────────────────────
     const maskBuffer = await buildMaskPng(IMGSIZE);
