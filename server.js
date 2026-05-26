@@ -68,11 +68,16 @@ app.post('/api/generate', async (req, res) => {
     const photoBuffer = Buffer.from(photoB64, 'base64');
     const jimpImg = await Jimp.read(photoBuffer);
 
-    // Center-crop to square then resize to 1024
-    const minDim = Math.min(jimpImg.width, jimpImg.height);
-    jimpImg
-      .crop({ x: Math.floor((jimpImg.width - minDim) / 2), y: Math.floor((jimpImg.height - minDim) / 2), w: minDim, h: minDim })
-      .resize({ w: IMGSIZE, h: IMGSIZE });
+    // Fit entire image into 1024x1024 without cropping — pad with white
+    const origW = jimpImg.width, origH = jimpImg.height;
+    const scale = Math.min(IMGSIZE / origW, IMGSIZE / origH);
+    const newW = Math.round(origW * scale), newH = Math.round(origH * scale);
+    jimpImg.resize({ w: newW, h: newH });
+    const padded = new Jimp({ width: IMGSIZE, height: IMGSIZE, color: 0xFFFFFFFF });
+    padded.composite(jimpImg, Math.floor((IMGSIZE - newW) / 2), Math.floor((IMGSIZE - newH) / 2));
+    const finalPhotoBuffer = await padded.getBuffer('image/png');
+    // Use padded image for editing (reassign)
+    Object.assign(jimpImg, padded);
 
     const finalPhotoBuffer = await jimpImg.getBuffer('image/png');
 
@@ -186,7 +191,19 @@ function makeChunk(type, data) {
   return Buffer.concat([len, typeB, data, crcOut]);
 }
 
-// ─── POST /api/share-image ────────────────────────────────────────────────────
+// ─── GET /api/logo ────────────────────────────────────────────────────────────
+// Fetches the Heidelberg Materials logo server-side and returns as base64
+// Avoids browser CORS restrictions on Wikimedia
+app.get('/api/logo', async (req, res) => {
+  try {
+    const logoResp = await fetch('https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Heidelberg_Materials_logo.svg/1200px-Heidelberg_Materials_logo.svg.png');
+    const buffer = Buffer.from(await logoResp.arrayBuffer());
+    const b64 = buffer.toString('base64');
+    res.json({ logo: 'data:image/png;base64,' + b64 });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.post('/api/share-image', express.json({ limit: '10mb' }), (req, res) => {
   try {
     const { imageB64, team, flag } = req.body;
