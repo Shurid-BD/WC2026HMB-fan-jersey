@@ -166,104 +166,45 @@ function hideLoad(){document.getElementById('loader').style.display='none';}
 
 async function generate(){
   if(!userPhoto||!selTeam)return;
-
   showLoad('Preparing your photo...');
   setSt('');
   document.getElementById('genBtn').disabled=true;
   document.getElementById('actRow').classList.remove('show');
 
   try{
-    const team=selTeam;
+    // Resize photo
+    const tmpC=document.createElement('canvas');
+    const MAX=500;let w=userPhoto.width,h=userPhoto.height;
+    if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+    if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}
+    tmpC.width=w;tmpC.height=h;
+    tmpC.getContext('2d').drawImage(userPhoto,0,0,w,h);
+    const photoB64=tmpC.toDataURL('image/jpeg',0.80).split(',')[1];
 
-    // Resize photo to 1024x1024 square (DALL-E requirement)
-    const SIZE=1024;
-    const sqCanvas=document.createElement('canvas');
-    sqCanvas.width=SIZE;sqCanvas.height=SIZE;
-    const sqCtx=sqCanvas.getContext('2d');
-    sqCtx.fillStyle='#ffffff';
-    sqCtx.fillRect(0,0,SIZE,SIZE);
-    // center-fit the photo
-    const asp=userPhoto.width/userPhoto.height;
-    let dw=SIZE,dh=SIZE;
-    if(asp>1){dh=SIZE/asp;}else{dw=SIZE*asp;}
-    sqCtx.drawImage(userPhoto,(SIZE-dw)/2,(SIZE-dh)/2,dw,dh);
+    document.getElementById('lmsg').textContent='AI analysing your photo...';
 
-    const photoB64=sqCanvas.toDataURL('image/png').split(',')[1];
-
-    // Mask: transparent in torso region = area to inpaint
-    const maskCanvas=document.createElement('canvas');
-    maskCanvas.width=SIZE;maskCanvas.height=SIZE;
-    const mCtx=maskCanvas.getContext('2d');
-    mCtx.fillStyle='rgba(255,255,255,1)';
-    mCtx.fillRect(0,0,SIZE,SIZE);
-    mCtx.clearRect(SIZE*0.18,SIZE*0.28,SIZE*0.64,SIZE*0.52);
-    const maskB64=maskCanvas.toDataURL('image/png').split(',')[1];
-
-    const prompt=`The same person now wearing an official ${team.name} FIFA World Cup 2026 football jersey (${team.kit}). The jersey fits naturally on the body. Photorealistic. Keep the person's face, hair, background and everything else identical — only replace the shirt with the ${team.name} football jersey.`;
-
-    document.getElementById('lmsg').textContent='Generating jersey with DALL-E...';
-
-    const resp=await fetch('https://api.openai.com/v1/images/edits',{
+    // Call backend
+    const resp=await fetch(`${BACKEND_URL}/api/generate`,{
       method:'POST',
-      headers:{
-        'Authorization':'Bearer '+apiKey,
-        'Content-Type':'application/json'
-      },
-      body:JSON.stringify({
-        model:'gpt-image-1',
-        image:[{type:'image_url',image_url:{url:'data:image/png;base64,'+photoB64}}],
-        mask:{type:'image_url',image_url:{url:'data:image/png;base64,'+maskB64}},
-        prompt,
-        n:1,
-        size:'1024x1024'
-      })
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({photoB64,team:selTeam})
     });
 
     const data=await resp.json();
-    if(data.error)throw new Error(data.error.message);
+    if(data.error)throw new Error(data.error);
 
-    const imgB64=data.data?.[0]?.b64_json;
-    const imgUrl=data.data?.[0]?.url;
+    const{imgB64,person}=data;
 
     document.getElementById('lmsg').textContent='Building your fan card...';
 
-    // Load the generated image
     const genImg=new Image();
-    genImg.crossOrigin='anonymous';
     await new Promise((res,rej)=>{
       genImg.onload=res;genImg.onerror=rej;
-      genImg.src=imgB64?`data:image/png;base64,${imgB64}`:imgUrl;
+      genImg.src=`data:image/png;base64,${imgB64}`;
     });
 
-    // Also get AI caption from Claude
-    const tmpC=document.createElement('canvas');
-    const MAX=400;let w=userPhoto.width,h=userPhoto.height;
-    if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
-    tmpC.width=w;tmpC.height=h;
-    tmpC.getContext('2d').drawImage(userPhoto,0,0,w,h);
-    const b64=tmpC.toDataURL('image/jpeg',0.75).split(',')[1];
-
-    let ai={caption:'A passionate '+team.name+' fan ready to cheer at the World Cup!',vibe:'bold and proud'};
-    try{
-      const cr=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',max_tokens:120,
-          system:`Return ONLY raw JSON: {"caption":"<1-2 sentences max 25 words describing this person as a ${team.name} fan, mention their visible features>","vibe":"<3 words max fan energy>"}`,
-          messages:[{role:'user',content:[
-            {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
-            {type:'text',text:`${team.name} supporter. JSON only.`}
-          ]}]
-        })
-      });
-      const cd=await cr.json();
-      const parsed=JSON.parse((cd.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim());
-      ai={...ai,...parsed};
-    }catch(_){}
-
     hideLoad();
-    drawCard(team,ai,genImg);
+    drawCard(selTeam,person,genImg);
     document.getElementById('cv').style.display='block';
     document.getElementById('prevBox').classList.add('done');
     document.getElementById('actRow').classList.add('show');
@@ -272,7 +213,7 @@ async function generate(){
   }catch(err){
     hideLoad();
     document.getElementById('ph').style.display='block';
-    setSt('Error: '+err.message+' — check your API key and credits.','error');
+    setSt('Error: '+err.message,'error');
   }
   document.getElementById('genBtn').disabled=false;
 }
