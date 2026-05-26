@@ -27,7 +27,7 @@ app.post('/api/generate', async (req, res) => {
     const { photoB64, team } = req.body;
     if (!photoB64 || !team) return res.status(400).json({ error: 'Missing photo or team' });
 
-    // ── Step 1: Claude Vision — describe the person ──────────────────────────
+    // ── Step 1: Claude Vision ─────────────────────────────────────────────────
     const claudeResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -38,13 +38,13 @@ app.post('/api/generate', async (req, res) => {
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
         max_tokens: 320,
-        system: `Analyse the person in the photo carefully. Return ONLY raw JSON, no markdown:
-{"gender":"man or woman","age":"approximate e.g. mid-40s","build":"e.g. heavyset, athletic, slim","hair":"color and style e.g. short salt-and-pepper hair","skin":"skin tone e.g. medium brown","expression":"e.g. calm, smiling","beard":"describe beard/facial hair or none","caption":"<1-2 sentences max 25 words as a proud ${team.name} fan>","vibe":"<3 words max fan energy>"}`,
+        system: `Analyse the person in the photo. Return ONLY raw JSON:
+{"gender":"man or woman","age":"e.g. mid-40s","build":"e.g. heavyset","hair":"e.g. short grey hair","skin":"e.g. medium brown","expression":"e.g. calm","beard":"describe or none","caption":"<max 25 words as proud ${team.name} fan>","vibe":"<3 words>"}`,
         messages: [{
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: photoB64 } },
-            { type: 'text', text: `Describe this person precisely. Team: ${team.name}. JSON only.` }
+            { type: 'text', text: `Team: ${team.name}. JSON only.` }
           ]
         }]
       })
@@ -53,64 +53,57 @@ app.post('/api/generate', async (req, res) => {
     const claudeData = await claudeResp.json();
     if (claudeData.error) throw new Error('Claude: ' + claudeData.error.message);
 
-    let person = {
-      gender: 'man', age: 'adult', build: 'average build',
-      hair: 'dark hair', skin: 'medium brown skin', expression: 'calm',
-      beard: 'short beard', caption: `A passionate ${team.name} fan!`, vibe: 'bold and proud'
-    };
+    let person = { gender:'man', age:'adult', build:'average', hair:'dark hair',
+      skin:'medium skin', expression:'calm', beard:'short beard',
+      caption:`A passionate ${team.name} fan!`, vibe:'bold and proud' };
     try {
-      const raw = claudeData.content?.[0]?.text || '{}';
-      Object.assign(person, JSON.parse(raw.replace(/```json|```/g, '').trim()));
-    } catch (_) {}
+      Object.assign(person, JSON.parse((claudeData.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim()));
+    } catch(_) {}
 
-    // ── Step 2: OpenAI Image Edit (inpainting) ───────────────────────────────
-    // Use gpt-image-1 edit endpoint with the actual photo
-    // This preserves the person's face and body, only editing the clothing region
+    // ── Step 2: Resize photo to exactly 1024x1024 square ────────────────────
+    // We use Jimp (pure JS image library) — add to package.json: "jimp": "^0.22.12"
+    const { Jimp } = require('jimp');
+    const IMGSIZE = 1024;
 
-    const jerseyPrompt = `Replace ONLY the shirt/clothing on this person with an official ${team.name} FIFA World Cup 2026 football jersey (${team.kit}). 
-Keep EVERYTHING else IDENTICAL: the person's face, hair, beard, skin, body shape, posture, position, hands, background, lighting, and image framing. 
-Do NOT zoom in, crop, or change the composition in any way. 
-Do NOT alter the person's appearance, weight, or proportions.
-Only the fabric of the shirt changes to the ${team.name} jersey with authentic team colors and badge.`;
-
-    // Build multipart form data manually using Buffer
-    const boundary = '----FormBoundary' + uuid().replace(/-/g, '');
-
-    // Convert base64 photo to buffer
     const photoBuffer = Buffer.from(photoB64, 'base64');
+    const jimpImg = await Jimp.read(photoBuffer);
 
-    // Build mask: transparent in torso region only
-    // We create a simple PNG mask programmatically
-    const maskB64 = createMaskBase64();
-    const maskBuffer = Buffer.from(maskB64, 'base64');
+    // Center-crop to square then resize to 1024
+    const minDim = Math.min(jimpImg.width, jimpImg.height);
+    jimpImg
+      .crop({ x: Math.floor((jimpImg.width - minDim) / 2), y: Math.floor((jimpImg.height - minDim) / 2), w: minDim, h: minDim })
+      .resize({ w: IMGSIZE, h: IMGSIZE });
 
+    const finalPhotoBuffer = await jimpImg.getBuffer('image/png');
+
+    // ── Step 3: Build matching 1024x1024 mask PNG ────────────────────────────
+    const maskBuffer = await buildMaskPng(IMGSIZE);
+
+    // ── Step 4: OpenAI Image Edit ─────────────────────────────────────────────
+    const jerseyPrompt = `Replace ONLY the shirt/clothing with an official ${team.name} FIFA World Cup 2026 football jersey (${team.kit}). Keep EVERYTHING else IDENTICAL: face, hair, beard, skin, body shape, posture, hands, background, lighting, framing. Do NOT zoom, crop or change composition. Only the fabric of the shirt changes.`;
+
+    const boundary = 'FormBoundary' + Date.now().toString(16);
     let body = Buffer.alloc(0);
 
-    const addField = (name, value) => {
-      const part = `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`;
-      body = Buffer.concat([body, Buffer.from(part)]);
+    const addFile = (name, filename, type, buf) => {
+      const h = `--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename="${filename}"\r\nContent-Type: ${type}\r\n\r\n`;
+      body = Buffer.concat([body, Buffer.from(h), buf, Buffer.from('\r\n')]);
+    };
+    const addField = (name, val) => {
+      body = Buffer.concat([body, Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${val}\r\n`)]);
     };
 
-    const addFile = (name, filename, contentType, fileBuffer) => {
-      const header = `--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`;
-      body = Buffer.concat([body, Buffer.from(header), fileBuffer, Buffer.from('\r\n')]);
-    };
-
-    addFile('image', 'photo.jpg', 'image/jpeg', photoBuffer);
-    addFile('mask', 'mask.png', 'image/png', maskBuffer);
+    addFile('image', 'photo.png', 'image/png', finalPhotoBuffer);
+    addFile('mask',  'mask.png',  'image/png', maskBuffer);
     addField('prompt', jerseyPrompt);
     addField('model', 'gpt-image-1');
     addField('n', '1');
     addField('size', '1024x1024');
-
     body = Buffer.concat([body, Buffer.from(`--${boundary}--\r\n`)]);
 
     const editResp = await fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + OPENAI_KEY,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`
-      },
+      headers: { 'Authorization': 'Bearer ' + OPENAI_KEY, 'Content-Type': `multipart/form-data; boundary=${boundary}` },
       body
     });
 
@@ -119,10 +112,9 @@ Only the fabric of the shirt changes to the ${team.name} jersey with authentic t
 
     const imgB64 = editData.data?.[0]?.b64_json;
     const imgUrl = editData.data?.[0]?.url;
+    if (!imgB64 && !imgUrl) throw new Error('No image returned');
 
-    if (!imgB64 && !imgUrl) throw new Error('No image returned from OpenAI');
-
-    res.json({ imgB64: imgB64 || null, imgUrl: imgUrl || null, person });
+    res.json({ imgB64: imgB64||null, imgUrl: imgUrl||null, person });
 
   } catch (err) {
     console.error(err);
