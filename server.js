@@ -124,30 +124,11 @@ face.x = left edge, face.y = top edge, face.w = width, face.h = height — all a
     padded.composite(resized, padX, padY);
     const finalPhotoBuffer = await padded.getBuffer('image/png');
 
-    // ── Step 3: Extract face region from ORIGINAL resized image ─────────────
-    // Face fractions are relative to the ORIGINAL image dimensions
-    // We need to map them to the padded 1024x1024 coordinate space
-    const facePixX = Math.round(padX + f.x * newW);
-    const facePixY = Math.round(padY + f.y * newH);
-    const facePixW = Math.round(f.w * newW);
-    const facePixH = Math.round(f.h * newH);
-
-    // Clamp to image bounds
-    const cropX = Math.max(0, facePixX);
-    const cropY = Math.max(0, facePixY);
-    const cropW = Math.min(IMGSIZE - cropX, Math.max(1, facePixW));
-    const cropH = Math.min(IMGSIZE - cropY, Math.max(1, facePixH));
-
-    console.log(`Face region: x=${cropX}, y=${cropY}, w=${cropW}, h=${cropH}`);
-    console.log(`Face fractions from Claude: x=${f.x}, y=${f.y}, w=${f.w}, h=${f.h}`);
-
-    const faceRegion = padded.clone().crop({ x: cropX, y: cropY, w: cropW, h: cropH });
-
-    // ── Step 4: Build mask — transparent only over shirt region ──────────────
+    // ── Step 4: Build mask — transparent ONLY over shirt, keep face/bg ───────
     const maskBuffer = await buildMaskPng(IMGSIZE);
 
     // ── Step 5: OpenAI image edit ─────────────────────────────────────────────
-    const jerseyPrompt = `Replace ONLY the shirt/clothing with an official ${team.name} FIFA World Cup 2026 football jersey (${team.kit}). Keep EVERYTHING else IDENTICAL: face, hair, beard, skin tone, body shape, posture, hands, background, lighting, and image framing. Do NOT zoom, crop, or change composition. Only the fabric of the shirt changes.`;
+    const jerseyPrompt = `This is a photo editing task. Replace ONLY the shirt/top clothing item with an official ${team.name} FIFA World Cup 2026 football jersey: ${team.kit}. The jersey must fit naturally on the body. Preserve absolutely everything else: the person's face, facial features, hair, beard, skin tone, body proportions, hands, background, room, lighting, shadows, and overall image composition. Do not reposition the person. Do not change the background. Do not alter any facial features.`;
 
     const boundary = 'Boundary' + Date.now().toString(16);
     let body = Buffer.alloc(0);
@@ -184,28 +165,14 @@ face.x = left edge, face.y = top edge, face.w = width, face.h = height — all a
     const imgUrl = editData.data?.[0]?.url;
     if (!imgB64 && !imgUrl) throw new Error('No image returned');
 
-    // ── Step 6: Paste original upper body (head+neck) back onto generated ────
+    // ── Step 6: Return generated image directly (no face paste) ──────────────
     let resultBuffer;
     try {
-      const genImgBuffer = imgB64
+      resultBuffer = imgB64
         ? Buffer.from(imgB64, 'base64')
         : Buffer.from(await (await fetch(imgUrl)).arrayBuffer());
-
-      const genImg = await Jimp.read(genImgBuffer);
-
-      // Take top 38% of padded original (everything above shirt mask)
-      // This covers head, neck, shoulders — exactly what we want to preserve
-      const headH = Math.round(IMGSIZE * 0.38);
-      const headRegion = padded.clone().crop({ x: 0, y: 0, w: IMGSIZE, h: headH });
-
-      // Composite head region onto generated image at same position (top)
-      genImg.composite(headRegion, 0, 0);
-
-      resultBuffer = await genImg.getBuffer('image/png');
-      console.log(`Head paste: top ${headH}px of original preserved`);
     } catch(e) {
-      console.error('Face paste failed:', e.message);
-      resultBuffer = imgB64 ? Buffer.from(imgB64, 'base64') : null;
+      console.error('Image fetch failed:', e.message);
     }
 
     const finalB64 = resultBuffer ? resultBuffer.toString('base64') : imgB64;
