@@ -95,12 +95,16 @@ face.x = left edge, face.y = top edge, face.w = width, face.h = height — all a
       if (!person.face) person.face = { x: 0.25, y: 0.05, w: 0.50, h: 0.30 };
     } catch(_) {}
 
-    // Clamp face values
+    // Clamp and validate face values — face should always be in upper 50% of image
     const f = person.face;
-    f.x = Math.max(0, Math.min(0.9, f.x));
-    f.y = Math.max(0, Math.min(0.9, f.y));
-    f.w = Math.max(0.1, Math.min(1 - f.x, f.w));
-    f.h = Math.max(0.1, Math.min(1 - f.y, f.h));
+    f.x = Math.max(0, Math.min(0.85, f.x));
+    f.y = Math.max(0, Math.min(0.45, f.y)); // face top never below 45% of image
+    f.w = Math.max(0.15, Math.min(0.7, f.w));
+    f.h = Math.max(0.15, Math.min(0.45, f.h)); // face height never more than 45%
+    // Ensure face doesn't go out of bounds
+    if (f.x + f.w > 1) f.w = 1 - f.x;
+    if (f.y + f.h > 1) f.h = 1 - f.y;
+    console.log('Face after clamp:', JSON.stringify(f));
 
     // ── Step 2: Resize original photo to 1024x1024 (fit, pad with white) ────
     const { Jimp } = require('jimp');
@@ -120,8 +124,9 @@ face.x = left edge, face.y = top edge, face.w = width, face.h = height — all a
     padded.composite(resized, padX, padY);
     const finalPhotoBuffer = await padded.getBuffer('image/png');
 
-    // ── Step 3: Extract face region from padded original ─────────────────────
-    // Convert face fractions to pixel coords in the padded 1024x1024 image
+    // ── Step 3: Extract face region from ORIGINAL resized image ─────────────
+    // Face fractions are relative to the ORIGINAL image dimensions
+    // We need to map them to the padded 1024x1024 coordinate space
     const facePixX = Math.round(padX + f.x * newW);
     const facePixY = Math.round(padY + f.y * newH);
     const facePixW = Math.round(f.w * newW);
@@ -130,8 +135,11 @@ face.x = left edge, face.y = top edge, face.w = width, face.h = height — all a
     // Clamp to image bounds
     const cropX = Math.max(0, facePixX);
     const cropY = Math.max(0, facePixY);
-    const cropW = Math.min(IMGSIZE - cropX, facePixW);
-    const cropH = Math.min(IMGSIZE - cropY, facePixH);
+    const cropW = Math.min(IMGSIZE - cropX, Math.max(1, facePixW));
+    const cropH = Math.min(IMGSIZE - cropY, Math.max(1, facePixH));
+
+    console.log(`Face region: x=${cropX}, y=${cropY}, w=${cropW}, h=${cropH}`);
+    console.log(`Face fractions from Claude: x=${f.x}, y=${f.y}, w=${f.w}, h=${f.h}`);
 
     const faceRegion = padded.clone().crop({ x: cropX, y: cropY, w: cropW, h: cropH });
 
