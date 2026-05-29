@@ -37,7 +37,7 @@ app.post('/api/generate', async (req, res) => {
     const { photoB64, team } = req.body;
     if (!photoB64 || !team) return res.status(400).json({ error: 'Missing photo or team' });
 
-    // Step 1: Claude Vision — describe the person
+    // ── Step 1: Claude Vision — describe person AND get face bounding box ────
     const claudeResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -47,14 +47,34 @@ app.post('/api/generate', async (req, res) => {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
-        max_tokens: 320,
-        system: `Analyse the person in the photo. Return ONLY raw JSON:
-{"gender":"man or woman","age":"e.g. mid-40s","build":"e.g. heavyset","hair":"e.g. short grey hair","skin":"e.g. medium brown","expression":"e.g. calm","beard":"describe or none","caption":"<max 25 words as proud ${team.name} fan>","vibe":"<3 words>"}`,
+        max_tokens: 400,
+        system: `Analyse the person in the photo carefully. Return ONLY raw JSON, no markdown.
+Find the face bounding box as fractions of image dimensions (0.0 to 1.0).
+Include some padding around the face (about 15% extra on each side).
+Format:
+{
+  "gender": "man or woman",
+  "age": "e.g. mid-40s",
+  "build": "e.g. heavyset",
+  "hair": "e.g. short grey hair",
+  "skin": "e.g. medium brown",
+  "expression": "e.g. calm",
+  "beard": "describe or none",
+  "caption": "<max 25 words as proud ${team.name} fan>",
+  "vibe": "<3 words>",
+  "face": {
+    "x": 0.35,
+    "y": 0.05,
+    "w": 0.30,
+    "h": 0.28
+  }
+}
+face.x = left edge, face.y = top edge, face.w = width, face.h = height — all as fractions of image size.`,
         messages: [{
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: photoB64 } },
-            { type: 'text', text: `Team: ${team.name}. JSON only.` }
+            { type: 'text', text: `Team: ${team.name}. Find face bounding box precisely. JSON only.` }
           ]
         }]
       })
@@ -66,31 +86,59 @@ app.post('/api/generate', async (req, res) => {
     let person = {
       gender: 'man', age: 'adult', build: 'average', hair: 'dark hair',
       skin: 'medium skin', expression: 'calm', beard: 'short beard',
-      caption: `A passionate ${team.name} fan!`, vibe: 'bold and proud'
+      caption: `A passionate ${team.name} fan!`, vibe: 'bold and proud',
+      face: { x: 0.25, y: 0.05, w: 0.50, h: 0.30 }
     };
     try {
-      Object.assign(person, JSON.parse((claudeData.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim()));
+      const parsed = JSON.parse((claudeData.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
+      Object.assign(person, parsed);
+      if (!person.face) person.face = { x: 0.25, y: 0.05, w: 0.50, h: 0.30 };
     } catch(_) {}
 
-    // Step 2: Resize photo to exactly 1024x1024 (fit, not crop — pad with white)
+    // Clamp face values
+    const f = person.face;
+    f.x = Math.max(0, Math.min(0.9, f.x));
+    f.y = Math.max(0, Math.min(0.9, f.y));
+    f.w = Math.max(0.1, Math.min(1 - f.x, f.w));
+    f.h = Math.max(0.1, Math.min(1 - f.y, f.h));
+
+    // ── Step 2: Resize original photo to 1024x1024 (fit, pad with white) ────
     const { Jimp } = require('jimp');
     const IMGSIZE = 1024;
     const photoBuffer = Buffer.from(photoB64, 'base64');
-    const jimpImg = await Jimp.read(photoBuffer);
+    const origImg = await Jimp.read(photoBuffer);
+    const origW = origImg.width, origH = origImg.height;
 
-    const scale = Math.min(IMGSIZE / jimpImg.width, IMGSIZE / jimpImg.height);
-    const newW = Math.round(jimpImg.width * scale);
-    const newH = Math.round(jimpImg.height * scale);
-    jimpImg.resize({ w: newW, h: newH });
+    const scale = Math.min(IMGSIZE / origW, IMGSIZE / origH);
+    const newW = Math.round(origW * scale);
+    const newH = Math.round(origH * scale);
+    const padX = Math.floor((IMGSIZE - newW) / 2);
+    const padY = Math.floor((IMGSIZE - newH) / 2);
 
+    const resized = origImg.clone().resize({ w: newW, h: newH });
     const padded = new Jimp({ width: IMGSIZE, height: IMGSIZE, color: 0xFFFFFFFF });
-    padded.composite(jimpImg, Math.floor((IMGSIZE - newW) / 2), Math.floor((IMGSIZE - newH) / 2));
+    padded.composite(resized, padX, padY);
     const finalPhotoBuffer = await padded.getBuffer('image/png');
 
-    // Step 3: Build mask — transparent ONLY over shirt area, keep everything else
+    // ── Step 3: Extract face region from padded original ─────────────────────
+    // Convert face fractions to pixel coords in the padded 1024x1024 image
+    const facePixX = Math.round(padX + f.x * newW);
+    const facePixY = Math.round(padY + f.y * newH);
+    const facePixW = Math.round(f.w * newW);
+    const facePixH = Math.round(f.h * newH);
+
+    // Clamp to image bounds
+    const cropX = Math.max(0, facePixX);
+    const cropY = Math.max(0, facePixY);
+    const cropW = Math.min(IMGSIZE - cropX, facePixW);
+    const cropH = Math.min(IMGSIZE - cropY, facePixH);
+
+    const faceRegion = padded.clone().crop({ x: cropX, y: cropY, w: cropW, h: cropH });
+
+    // ── Step 4: Build mask — transparent only over shirt region ──────────────
     const maskBuffer = await buildMaskPng(IMGSIZE);
 
-    // Step 4: OpenAI image edit (inpainting)
+    // ── Step 5: OpenAI image edit ─────────────────────────────────────────────
     const jerseyPrompt = `Replace ONLY the shirt/clothing with an official ${team.name} FIFA World Cup 2026 football jersey (${team.kit}). Keep EVERYTHING else IDENTICAL: face, hair, beard, skin tone, body shape, posture, hands, background, lighting, and image framing. Do NOT zoom, crop, or change composition. Only the fabric of the shirt changes.`;
 
     const boundary = 'Boundary' + Date.now().toString(16);
@@ -128,7 +176,28 @@ app.post('/api/generate', async (req, res) => {
     const imgUrl = editData.data?.[0]?.url;
     if (!imgB64 && !imgUrl) throw new Error('No image returned');
 
-    res.json({ imgB64: imgB64 || null, imgUrl: imgUrl || null, person });
+    // ── Step 6: Paste original face back onto generated image ─────────────────
+    let resultBuffer;
+    try {
+      const genImgBuffer = imgB64
+        ? Buffer.from(imgB64, 'base64')
+        : Buffer.from(await (await fetch(imgUrl)).arrayBuffer());
+
+      const genImg = await Jimp.read(genImgBuffer);
+
+      // Apply subtle feathering at face edges for natural blend
+      // Composite original face region back at exact same position
+      genImg.composite(faceRegion, cropX, cropY);
+
+      resultBuffer = await genImg.getBuffer('image/png');
+    } catch(e) {
+      console.error('Face paste failed:', e.message);
+      // Fall back to raw generated image
+      resultBuffer = imgB64 ? Buffer.from(imgB64, 'base64') : null;
+    }
+
+    const finalB64 = resultBuffer ? resultBuffer.toString('base64') : imgB64;
+    res.json({ imgB64: finalB64, person });
 
   } catch (err) {
     console.error(err);
@@ -142,7 +211,6 @@ async function buildMaskPng(size) {
   const img = new Jimp({ width: size, height: size });
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      // Tight shirt-only region: x 10%-90%, y 38%-72%
       const inShirt = x > size*0.10 && x < size*0.90 && y > size*0.38 && y < size*0.72;
       img.setPixelColor(inShirt ? 0x00000000 : 0xFFFFFFFF, x, y);
     }
