@@ -184,7 +184,7 @@ face.x = left edge, face.y = top edge, face.w = width, face.h = height — all a
     const imgUrl = editData.data?.[0]?.url;
     if (!imgB64 && !imgUrl) throw new Error('No image returned');
 
-    // ── Step 6: Paste original face back onto generated image ─────────────────
+    // ── Step 6: Paste original upper body (head+neck) back onto generated ────
     let resultBuffer;
     try {
       const genImgBuffer = imgB64
@@ -193,14 +193,18 @@ face.x = left edge, face.y = top edge, face.w = width, face.h = height — all a
 
       const genImg = await Jimp.read(genImgBuffer);
 
-      // Apply subtle feathering at face edges for natural blend
-      // Composite original face region back at exact same position
-      genImg.composite(faceRegion, cropX, cropY);
+      // Take top 38% of padded original (everything above shirt mask)
+      // This covers head, neck, shoulders — exactly what we want to preserve
+      const headH = Math.round(IMGSIZE * 0.38);
+      const headRegion = padded.clone().crop({ x: 0, y: 0, w: IMGSIZE, h: headH });
+
+      // Composite head region onto generated image at same position (top)
+      genImg.composite(headRegion, 0, 0);
 
       resultBuffer = await genImg.getBuffer('image/png');
+      console.log(`Head paste: top ${headH}px of original preserved`);
     } catch(e) {
       console.error('Face paste failed:', e.message);
-      // Fall back to raw generated image
       resultBuffer = imgB64 ? Buffer.from(imgB64, 'base64') : null;
     }
 
